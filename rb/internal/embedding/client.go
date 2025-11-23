@@ -1,6 +1,7 @@
 package embedding
 
 import (
+	context "context"
 	"fmt"
 	"time"
 
@@ -25,9 +26,9 @@ func NewClient(serverAddr string) (*Client, error) {
 		}),
 	}
 
-	conn, err := grpc.Dial(serverAddr, ops...)
+	conn, err := grpc.Dial(serverAddr, opts...)
 	if err != nil {
-		return nil, fmt.Error("failed to connect to embeddings service: %w", err)
+		return nil, fmt.Errorf("failed to connect to embeddings service: %w", err)
 	}
 
 	client := NewEmbeddingServiceClient(conn)
@@ -44,20 +45,19 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) GetEmbedding(prompt String) ([]float32, error) {
-	reqBody := EmbeddingRequest{
+func (c *Client) GetEmbedding(ctx context.Context, prompt string) ([]float32, error) {
+	req := EmbeddingRequest{
 		Prompt: prompt,
 	}
 
-	resp, err := c.client.GetEmbedding(ctx, req)
+	resp, err := c.client.GetEmbedding(ctx, &req)
 	if err != nil {
-		return nil, fmt.Error("failed to get embedding %w", err)
+		return nil, fmt.Errorf("failed to get embedding %w", err)
 	}
 
 	return resp.Embedding, nil
 }
 
-/*
 func (c *Client) GetEmbeddingBatch(ctx context.Context, prompts []string) ([][]float32, error) {
 	req := &EmbeddingBatchRequest{
 		Prompts: prompts,
@@ -76,4 +76,3 @@ func (c *Client) GetEmbeddingBatch(ctx context.Context, prompts []string) ([][]f
 
 	return embeddings, nil
 }
-*/

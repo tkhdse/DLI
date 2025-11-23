@@ -1,0 +1,5 @@
+package vdb
+
+func VDBClient() {
+
+}
