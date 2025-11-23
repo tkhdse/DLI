@@ -29,12 +29,16 @@ func main() {
 	// test GetEmbedding()
 	prompt := "Random Prompt"
 	fmt.Printf("Generating Embedding for prompt: %s\n", prompt)
+
+	rpc_start := time.Now()
 	embedding, err := client.GetEmbedding(ctx, prompt)
+	rpc_duration := time.Since(rpc_start)
 	if err != nil {
 		log.Fatalf("Failed to get embedding: %v", err)
 	}
 
 	fmt.Printf("Resulting Embedding: %v\n", embedding[:min(5, len(embedding))])
+	fmt.Printf("Request took: %v\n", rpc_duration)
 }
 
 func min(a, b int) int {
