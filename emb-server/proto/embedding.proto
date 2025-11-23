@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package embedding;
+
+option go_package = "dli/internal/embedding";
+option py_generic_services = true;  // For Python
+
+// EmbeddingService provides methods to generate embeddings
+service EmbeddingService {
+  // GetEmbedding generates an embedding vector for a given prompt
+  rpc GetEmbedding(EmbeddingRequest) returns (EmbeddingResponse);
+  
+  // GetEmbeddingBatch generates embeddings for multiple prompts
+  rpc GetEmbeddingBatch(EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+}
+
+// EmbeddingRequest contains the prompt to embed
+message EmbeddingRequest {
+  string prompt = 1;
+}
+
+// EmbeddingResponse contains the generated embedding vector
+message EmbeddingResponse {
+  repeated float embedding = 1;  // repeated = array/slice in Go
+}
+
+// EmbeddingBatchRequest contains multiple prompts
+message EmbeddingBatchRequest {
+  repeated string prompts = 1;
+}
+
+// EmbeddingBatchResponse contains multiple embedding vectors
+message EmbeddingBatchResponse {
+  repeated EmbeddingResponse embeddings = 1;
+}
