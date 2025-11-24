@@ -3,26 +3,18 @@ import os
 import grpc
 from concurrent import futures
 from generated import embedding_pb2, embedding_pb2_grpc
-
-# Import your embedding model here
-# from transformers import AutoModel, AutoTokenizer
-# import torch
+from langchain_huggingface import HuggingFaceEmbeddings
 
 class EmbeddingService(embedding_pb2_grpc.EmbeddingServiceServicer):
     def __init__(self):
-        # Initialize your embedding model here
-        # self.model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-        # self.tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-        pass
+        self.embedder = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
     
     def GetEmbedding(self, request, context):
         """Generate embedding for a single prompt"""
         prompt = request.prompt
-        
-        # TODO: Call your embedding model here
-        # embedding = self.generate_embedding(prompt)
-        embedding = [0.1, 0.2, 0.3]  # Placeholder - replace with actual embedding
-        
+        embedding = self.embedder.embed_query(prompt)
         return embedding_pb2.EmbeddingResponse(embedding=embedding)
     
     def GetEmbeddingBatch(self, request, context):
@@ -31,8 +23,7 @@ class EmbeddingService(embedding_pb2_grpc.EmbeddingServiceServicer):
         embeddings = []
         
         for prompt in prompts:
-            # TODO: Call your embedding model here
-            embedding = [0.1, 0.2, 0.3]  # Placeholder
+            embedding = self.embedder.embed_query(prompt)
             embeddings.append(embedding_pb2.EmbeddingResponse(embedding=embedding))
         
         return embedding_pb2.EmbeddingBatchResponse(embeddings=embeddings)
