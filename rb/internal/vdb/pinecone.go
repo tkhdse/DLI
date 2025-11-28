@@ -28,7 +28,7 @@ func NewClient(apiKey, indexName string) (*Client, error) {
 
 	idx, err := pc.DescribeIndex(ctx, indexName)
 	if err != nil {
-		log.Fatalf("Failed to describe index \"%v\": %v", idx.Name, err)
+		log.Fatalf("Failed to describe index \"%v\": %v", indexName, err)
 	}
 
 	indexConn, err := pc.Index(pinecone.NewIndexConnParams{Host: idx.Host, Namespace: ""})
@@ -64,6 +64,11 @@ func (c *Client) Upsert(ctx context.Context, vectors []Vector) error {
 			Values:   &v.Values,
 			Metadata: metadataStruct,
 		}
+	}
+
+	// Add nil check for indexConn (defensive)
+	if c.indexConn == nil {
+		return fmt.Errorf("index connection is nil")
 	}
 
 	_, err := c.indexConn.UpsertVectors(ctx, pineconeVectors)
@@ -105,21 +110,28 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryResponse, e
 	}
 
 	for i, match := range resp.Matches {
-		// Convert metadata back from map[string]string to map[string]interface{}
+		// Initialize defaults
 		metadata := make(map[string]interface{})
-		for k, v := range match.Vector.Metadata.AsMap() {
-			metadata[k] = v
-		}
+		values := []float32{}
+		id := ""
 
-		var values []float32
-		if match.Vector != nil && match.Vector.Values != nil {
-			values = *match.Vector.Values
-		} else {
-			values = []float32{} // Empty slice if nil
+		// Safely access Vector fields
+		if match.Vector != nil {
+			id = match.Vector.Id
+
+			// Handle Metadata - check for nil
+			if match.Vector.Metadata != nil {
+				metadata = match.Vector.Metadata.AsMap()
+			}
+
+			// Handle Values - check for nil pointer
+			if match.Vector.Values != nil {
+				values = *match.Vector.Values
+			}
 		}
 
 		queryResponse.Matches[i] = QueryResult{
-			ID:       match.Vector.Id,
+			ID:       id,
 			Score:    match.Score,
 			Values:   values,
 			Metadata: metadata,
@@ -164,6 +176,11 @@ func (c *Client) GetIndexStats(ctx context.Context) (map[string]interface{}, err
 	idx, err := c.pineconeClient.DescribeIndex(ctx, c.indexName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get index stats: %w", err)
+	}
+
+	// Defensive check (though idx should not be nil if err is nil)
+	if idx == nil {
+		return nil, fmt.Errorf("index description returned nil")
 	}
 
 	result := map[string]interface{}{
