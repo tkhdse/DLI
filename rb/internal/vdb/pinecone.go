@@ -76,29 +76,25 @@ func (c *Client) Upsert(ctx context.Context, vectors []Vector) error {
 
 // Query searches for similar vectors
 func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryResponse, error) {
-	queryReq := pinecone.QueryRequest{
+
+	queryReq := &pinecone.QueryByVectorValuesRequest{
 		Vector:          req.Vector,
-		TopK:            req.TopK,
+		TopK:            uint32(req.TopK),
 		IncludeMetadata: req.IncludeMetadata,
 		IncludeValues:   req.IncludeValues,
 	}
 
-	// Add filter if provided
-	if req.Filter != nil {
-		// Convert filter to Pinecone's filter format
-		filter := make(map[string]interface{})
-		for k, v := range req.Filter {
-			filter[k] = v
+	// Set up metadata filter if provided
+	if req.Filter != nil && len(req.Filter) > 0 {
+		metadataFilter, err := structpb.NewStruct(req.Filter)
+		if err != nil {
+			log.Fatalf("Failed to create metadataFilter: %v", err)
 		}
-		queryReq.Filter = filter
+		// Set the filter on the query request
+		queryReq.MetadataFilter = metadataFilter
 	}
 
-	// Add namespace if provided
-	if req.Namespace != "" {
-		queryReq.Namespace = req.Namespace
-	}
-
-	resp, err := c.pineconeClient.Query(ctx, c.indexName, queryReq)
+	resp, err := c.indexConn.QueryByVectorValues(ctx, queryReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query vectors: %w", err)
 	}
@@ -111,14 +107,21 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryResponse, e
 	for i, match := range resp.Matches {
 		// Convert metadata back from map[string]string to map[string]interface{}
 		metadata := make(map[string]interface{})
-		for k, v := range match.Metadata {
+		for k, v := range match.Vector.Metadata.AsMap() {
 			metadata[k] = v
 		}
 
+		var values []float32
+		if match.Vector != nil && match.Vector.Values != nil {
+			values = *match.Vector.Values
+		} else {
+			values = []float32{} // Empty slice if nil
+		}
+
 		queryResponse.Matches[i] = QueryResult{
-			ID:       match.ID,
+			ID:       match.Vector.Id,
 			Score:    match.Score,
-			Values:   match.Values,
+			Values:   values,
 			Metadata: metadata,
 		}
 	}
@@ -128,9 +131,7 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (*QueryResponse, e
 
 // Delete deletes vectors by IDs
 func (c *Client) Delete(ctx context.Context, ids []string) error {
-	_, err := c.pineconeClient.Delete(ctx, c.indexName, pinecone.DeleteRequest{
-		IDs: ids,
-	})
+	err := c.indexConn.DeleteVectorsById(ctx, ids)
 	if err != nil {
 		return fmt.Errorf("failed to delete vectors: %w", err)
 	}
@@ -140,14 +141,17 @@ func (c *Client) Delete(ctx context.Context, ids []string) error {
 
 // DeleteByFilter deletes vectors matching a metadata filter
 func (c *Client) DeleteByFilter(ctx context.Context, filter map[string]interface{}) error {
-	pineconeFilter := make(map[string]interface{})
+	pineconeFilterStruct := make(map[string]interface{})
 	for k, v := range filter {
-		pineconeFilter[k] = v
+		pineconeFilterStruct[k] = v
 	}
 
-	_, err := c.pineconeClient.Delete(ctx, c.indexName, pinecone.DeleteRequest{
-		Filter: pineconeFilter,
-	})
+	pineconeFilter, err := structpb.NewStruct(pineconeFilterStruct)
+	if err != nil {
+		log.Fatalf("Failed to create metadata filter. Error: %v", err)
+	}
+
+	err = c.indexConn.DeleteVectorsByFilter(ctx, pineconeFilter)
 	if err != nil {
 		return fmt.Errorf("failed to delete vectors by filter: %w", err)
 	}
@@ -157,15 +161,15 @@ func (c *Client) DeleteByFilter(ctx context.Context, filter map[string]interface
 
 // GetIndexStats returns statistics about the index
 func (c *Client) GetIndexStats(ctx context.Context) (map[string]interface{}, error) {
-	stats, err := c.pineconeClient.DescribeIndexStats(ctx, c.indexName)
+	idx, err := c.pineconeClient.DescribeIndex(ctx, c.indexName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get index stats: %w", err)
 	}
 
 	result := map[string]interface{}{
-		"total_vector_count": stats.TotalVectorCount,
-		"dimension":          stats.Dimension,
-		"index_fullness":     stats.IndexFullness,
+		"metric":    idx.Metric,
+		"dimension": idx.Dimension,
+		"status":    idx.Status,
 	}
 
 	return result, nil
