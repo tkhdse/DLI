@@ -3,27 +3,42 @@ package vdb
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/pinecone-io/go-pinecone/v4/pinecone"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Client wraps the Pinecone client
 type Client struct {
 	pineconeClient *pinecone.Client
+	indexConn      *pinecone.IndexConnection
 	indexName      string
 }
 
 // NewClient creates a new Pinecone client
 func NewClient(apiKey, indexName string) (*Client, error) {
-	pc, err := pinecone.NewClient(pinecone.ClientConfig{
-		APIKey: apiKey,
+	ctx := context.Background()
+	pc, err := pinecone.NewClient(pinecone.NewClientParams{
+		ApiKey: apiKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Pinecone client: %w", err)
 	}
 
+	idx, err := pc.DescribeIndex(ctx, indexName)
+	if err != nil {
+		log.Fatalf("Failed to describe index \"%v\": %v", idx.Name, err)
+	}
+
+	indexConn, err := pc.Index(pinecone.NewIndexConnParams{Host: idx.Host, Namespace: ""})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index %s: %w", indexName, err)
+	}
+
 	return &Client{
 		pineconeClient: pc,
+		indexConn:      indexConn,
 		indexName:      indexName,
 	}, nil
 }
@@ -31,22 +46,27 @@ func NewClient(apiKey, indexName string) (*Client, error) {
 // Upsert inserts or updates vectors in the index
 func (c *Client) Upsert(ctx context.Context, vectors []Vector) error {
 	// Convert our Vector type to Pinecone's Vector type
-	pineconeVectors := make([]pinecone.Vector, len(vectors))
+	pineconeVectors := make([]*pinecone.Vector, len(vectors))
+
 	for i, v := range vectors {
-		// Convert metadata from map[string]interface{} to map[string]string
-		metadata := make(map[string]string)
-		for k, val := range v.Metadata {
-			metadata[k] = fmt.Sprintf("%v", val)
+		var metadataStruct *structpb.Struct
+		var err error
+
+		if v.Metadata != nil && len(v.Metadata) > 0 {
+			metadataStruct, err = structpb.NewStruct(v.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to convert metadata for vector %s: %w", v.ID, err)
+			}
 		}
 
-		pineconeVectors[i] = pinecone.Vector{
-			ID:       v.ID,
-			Values:   v.Values,
-			Metadata: metadata,
+		pineconeVectors[i] = &pinecone.Vector{
+			Id:       v.ID,
+			Values:   &v.Values,
+			Metadata: metadataStruct,
 		}
 	}
 
-	_, err := c.pineconeClient.Upsert(ctx, c.indexName, pineconeVectors)
+	_, err := c.indexConn.UpsertVectors(ctx, pineconeVectors)
 	if err != nil {
 		return fmt.Errorf("failed to upsert vectors: %w", err)
 	}
