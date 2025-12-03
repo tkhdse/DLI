@@ -1,66 +1,55 @@
-package durableindex
+package main
 
 import (
 	"context"
 )
 
-// Query represents a search query with its embedding and result channel
+// Query represents a single query with its text, embedding, and result channel
 type Query struct {
-	Text            string
-	VectorEmbedding []float32
-	ResultChan      chan interface{}
-	ctx             context.Context
+	Text      string
+	Embedding []float32
+	ResultCh  chan string // Channel to receive the result
 }
 
-// TODO: Figure out how embeddings work, inside NewQuery, we create the embedding
+// NewQuery creates a new query with the given text
+// In production, you'd integrate with an actual embedding model here
 func NewQuery(ctx context.Context, text string) *Query {
-	embedding := EmbedText(text)
+	// TODO: Replace with actual embedding generation
+	// For now, creating a dummy 384-dimensional embedding
+	embedding := generateDummyEmbedding(384)
+
 	return &Query{
-		Text:            text,
-		VectorEmbedding: embedding,
-		ResultChan:      make(chan interface{}, 1), // buffered to avoid blocking
-		ctx:             ctx,
+		Text:      text,
+		Embedding: embedding,
+		ResultCh:  make(chan string, 1), // Buffered channel for result
 	}
 }
 
-func EmbedText(text string) []float32 {
-	vec := make([]float32, 384)
-	for i := range vec {
-		vec[i] = float32(len(text))
+// generateDummyEmbedding creates a placeholder embedding
+// Replace this with actual sentence transformer integration
+func generateDummyEmbedding(dim int) []float32 {
+	emb := make([]float32, dim)
+	for i := range emb {
+		emb[i] = 0.1 // Placeholder values
 	}
-	return vec
+	return emb
 }
 
-// GetText returns the query text
-func (q *Query) GetText() string {
-	return q.Text
-}
-
-// GetEmbedding returns the vector embedding
-func (q *Query) GetEmbedding() []float32 {
-	return q.VectorEmbedding
-}
-
-// GetContext returns the query context
-func (q *Query) GetContext() context.Context {
-	return q.ctx
-}
-
-// SetResult sends the result to the result channel
-func (q *Query) SetResult(result interface{}) {
+// GetResult waits for and returns the query result
+func (q *Query) GetResult(ctx context.Context) (string, error) {
 	select {
-	case q.ResultChan <- result:
-	default:
-		// Channel already has a result or is closed
-	}
-}
-
-// WaitForResult blocks until a result is available or context is cancelled
-func (q *Query) WaitForResult() (interface{}, error) {
-	select {
-	case result := <-q.ResultChan:
+	case result := <-q.ResultCh:
 		return result, nil
-	case <-q.ctx.Done():
-		return nil, q.ctx.Err()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// SetResult sends a result to the query's channel
+func (q *Query) SetResult(result string) {
+	select {
+	case q.ResultCh <- result:
+	default:
+		// Channel already has a result
 	}
 }
