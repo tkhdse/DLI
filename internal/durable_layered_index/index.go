@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -31,9 +32,11 @@ func NewDurableLayeredIndex(dbCollection interface{}, numBins int, groupingThres
 	return dli
 }
 
-// addBin creates a new bin with a random representative vector
+// addBin creates a new bin with a representative vector
+// In production, you might want to use a real embedding as the bin vector
 func (dli *DurableLayeredIndex) addBin() {
 	// Generate random bin vector (384 dimensions to match embedding size)
+	// TODO: Consider using a representative embedding from actual queries
 	binVector := make([]float32, 384)
 	for i := range binVector {
 		binVector[i] = rand.Float32()
@@ -51,12 +54,15 @@ func (dli *DurableLayeredIndex) addBin() {
 
 // Query processes a query asynchronously and returns the result
 func (dli *DurableLayeredIndex) Query(ctx context.Context, queryText string) (string, error) {
-	// Create query with embedding
-	query := NewQuery(ctx, queryText)
+	// Create query with embedding from gRPC service
+	query, err := NewQuery(ctx, queryText)
+	if err != nil {
+		return "", fmt.Errorf("failed to create query: %w", err)
+	}
 
 	// Add query to appropriate bin
 	if err := dli.addQueryToBin(query); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to add query to bin: %w", err)
 	}
 
 	// Wait for and return result

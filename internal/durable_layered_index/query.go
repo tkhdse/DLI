@@ -2,8 +2,40 @@ package main
 
 import (
 	"context"
-	"math/rand"
+	"dli/embedding"
+	"fmt"
+	"log"
+	"sync"
 )
+
+var (
+	embeddingClient *embedding.Client
+	clientOnce      sync.Once
+	clientErr       error
+)
+
+// InitEmbeddingClient initializes the global embedding client
+// Call this once at application startup
+func InitEmbeddingClient(serverAddress string) error {
+	clientOnce.Do(func() {
+		log.Printf("Initializing embedding client for %s...", serverAddress)
+		embeddingClient, clientErr = embedding.NewClient(serverAddress)
+		if clientErr != nil {
+			log.Printf("Failed to create embedding client: %v", clientErr)
+			return
+		}
+		log.Printf("Embedding client initialized successfully")
+	})
+	return clientErr
+}
+
+// CloseEmbeddingClient closes the global embedding client
+func CloseEmbeddingClient() {
+	if embeddingClient != nil {
+		log.Println("Closing embedding client...")
+		embeddingClient.Close()
+	}
+}
 
 // Query represents a single query with its text, embedding, and result channel
 type Query struct {
@@ -13,26 +45,33 @@ type Query struct {
 }
 
 // NewQuery creates a new query with the given text
-// In production, integrate with an actual embedding model here
-func NewQuery(ctx context.Context, text string) *Query {
-	embedding := generateDummyEmbedding(384)
+// Uses the gRPC embedding service to generate the embedding
+func NewQuery(ctx context.Context, text string) (*Query, error) {
+	if embeddingClient == nil {
+		return nil, fmt.Errorf("embedding client not initialized - call InitEmbeddingClient first")
+	}
+
+	// Get real embedding from gRPC server
+	embedding, err := embeddingClient.GetEmbedding(ctx, text)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get embedding for '%s': %w", text, err)
+	}
 
 	return &Query{
 		Text:      text,
 		Embedding: embedding,
 		ResultCh:  make(chan string, 1),
-	}
+	}, nil
 }
 
-// generateDummyEmbedding creates a placeholder embedding
-// Replace this with actual sentence transformer integration
-func generateDummyEmbedding(dim int) []float32 {
-	emb := make([]float32, dim)
-	for i := range emb {
-		emb[i] = rand.Float32()
+// NewQueryWithEmbedding creates a query with a pre-computed embedding
+// Useful if you already have the embedding and want to avoid the gRPC call
+func NewQueryWithEmbedding(text string, embedding []float32) *Query {
+	return &Query{
+		Text:      text,
+		Embedding: embedding,
+		ResultCh:  make(chan string, 1),
 	}
-	normalizeVector(emb)
-	return emb
 }
 
 // GetResult waits for and returns the query result
