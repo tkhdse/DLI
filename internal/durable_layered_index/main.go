@@ -38,8 +38,11 @@ func main() {
 	fmt.Println("✓ Connected to embedding server")
 
 	// Initialize the Durable Layered Index
+	// Parameters: dbCollection, maxBins, groupingThreshold
+	// Lower threshold = more bins (stricter grouping)
+	// Higher threshold = fewer bins (looser grouping)
 	fmt.Println("\nInitializing Durable Layered Index...")
-	dli := NewDurableLayeredIndex(nil, 1, 0.9)
+	dli := NewDurableLayeredIndex(nil, 100, 0.7) // 0.85 threshold for moderate grouping
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -47,19 +50,40 @@ func main() {
 	}()
 	fmt.Println("✓ DLI initialized")
 
-	// Define test queries
+	// Define test queries - grouped by topic to see if DLI groups them correctly
 	queries := []string{
+		// Group 1: Machine Learning basics
 		"What is machine learning?",
+		"Explain machine learning algorithms",
+		"How does machine learning work?",
+
+		// Group 2: Deep Learning
+		"What is deep learning?",
 		"Explain neural networks",
-		"How does deep learning work?",
-		"What is artificial intelligence?",
-		"Define supervised learning",
-		"What are transformers in AI?",
+		"How do neural networks learn?",
+
+		// Group 3: Natural Language Processing
+		"What is natural language processing?",
+		"How does NLP work?",
+		"Explain text processing",
+
+		// Group 4: Computer Vision
+		"What is computer vision?",
+		"How does image recognition work?",
+		"Explain object detection",
+
+		// Group 5: Unrelated - Cooking
+		"How do I bake a cake?",
+		"What is the best chocolate recipe?",
+
+		// Group 6: Unrelated - Sports
+		"Who won the world cup?",
+		"Explain basketball rules",
 	}
 
 	line := strings.Repeat("=", 60)
 	fmt.Printf("\n" + line + "\n")
-	fmt.Printf("Processing %d queries concurrently...\n", len(queries))
+	fmt.Printf("Processing %d queries to test similarity grouping...\n", len(queries))
 	fmt.Printf(line + "\n\n")
 
 	// Process queries concurrently
@@ -88,7 +112,6 @@ func main() {
 				return
 			}
 			results[idx] = result
-			fmt.Printf("✓ Query %d completed in %v\n", idx+1, queryDuration)
 		}(i, q)
 	}
 
@@ -106,7 +129,6 @@ func main() {
 	}
 
 	// Print detailed results
-
 	fmt.Println("\n" + line)
 	fmt.Println("RESULTS")
 	fmt.Println(line)
@@ -122,7 +144,16 @@ func main() {
 		}
 	}
 
-	// Print summary statistics
+	// Print DLI statistics
+	stats := dli.GetStats()
+	fmt.Println("\n" + line)
+	fmt.Println("DLI STATISTICS")
+	fmt.Println(line)
+	fmt.Printf("Total bins created: %v\n", stats["num_bins"])
+	fmt.Printf("Grouping threshold: %.2f\n", stats["grouping_threshold"])
+	fmt.Printf("Max bins allowed: %v\n", stats["max_bins"])
+
+	// Print summary
 	fmt.Println("\n" + line)
 	fmt.Println("SUMMARY")
 	fmt.Println(line)
