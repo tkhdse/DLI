@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"math/rand"
 	"sync"
 	"time"
 )
 
-// DurableLayeredIndex manages bins and routes queries
+// DurableLayeredIndex manages bins and routes queries based on vector similarity
 type DurableLayeredIndex struct {
 	dbCollection      interface{}
 	binVectors        [][]float32
@@ -18,7 +16,7 @@ type DurableLayeredIndex struct {
 	groupingThreshold float32
 }
 
-// NewDurableLayeredIndex creates a new index
+// NewDurableLayeredIndex creates a new index with the specified configuration
 func NewDurableLayeredIndex(dbCollection interface{}, numBins int, groupingThreshold float32) *DurableLayeredIndex {
 	dli := &DurableLayeredIndex{
 		dbCollection:      dbCollection,
@@ -33,9 +31,9 @@ func NewDurableLayeredIndex(dbCollection interface{}, numBins int, groupingThres
 	return dli
 }
 
-// addBin creates a new bin with a random vector
+// addBin creates a new bin with a random representative vector
 func (dli *DurableLayeredIndex) addBin() {
-	// Generate random bin vector (384 dimensions)
+	// Generate random bin vector (384 dimensions to match embedding size)
 	binVector := make([]float32, 384)
 	for i := range binVector {
 		binVector[i] = rand.Float32()
@@ -51,7 +49,7 @@ func (dli *DurableLayeredIndex) addBin() {
 	dli.bins = append(dli.bins, NewBin(dli.dbCollection, 6, 500*time.Millisecond))
 }
 
-// Query processes a query asynchronously
+// Query processes a query asynchronously and returns the result
 func (dli *DurableLayeredIndex) Query(ctx context.Context, queryText string) (string, error) {
 	// Create query with embedding
 	query := NewQuery(ctx, queryText)
@@ -61,11 +59,11 @@ func (dli *DurableLayeredIndex) Query(ctx context.Context, queryText string) (st
 		return "", err
 	}
 
-	// Wait for result
+	// Wait for and return result
 	return query.GetResult(ctx)
 }
 
-// addQueryToBin finds the best matching bin and adds the query
+// addQueryToBin finds the best matching bin using cosine similarity and adds the query
 func (dli *DurableLayeredIndex) addQueryToBin(query *Query) error {
 	dli.mu.RLock()
 	defer dli.mu.RUnlock()
@@ -101,80 +99,4 @@ func (dli *DurableLayeredIndex) Close(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// Helper functions
-
-// cosineSimilarity calculates cosine similarity between two vectors
-func cosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) {
-		return 0
-	}
-
-	var dotProduct, normA, normB float32
-
-	for i := range a {
-		dotProduct += a[i] * b[i]
-		normA += a[i] * a[i]
-		normB += b[i] * b[i]
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-
-	return dotProduct / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
-}
-
-// normalizeVector normalizes a vector in place
-func normalizeVector(v []float32) {
-	var norm float32
-	for _, val := range v {
-		norm += val * val
-	}
-	norm = float32(math.Sqrt(float64(norm)))
-
-	if norm > 0 {
-		for i := range v {
-			v[i] /= norm
-		}
-	}
-}
-
-// Example usage
-func main() {
-	ctx := context.Background()
-
-	// Create index
-	dli := NewDurableLayeredIndex(nil, 1, 0.9)
-	defer dli.Close(ctx)
-
-	// Create queries
-	queries := []string{"Q1", "Q2", "Q3", "Q4", "Q5", "Q6"}
-
-	// Process queries concurrently
-	results := make([]string, len(queries))
-	var wg sync.WaitGroup
-
-	for i, q := range queries {
-		wg.Add(1)
-		go func(idx int, queryText string) {
-			defer wg.Done()
-
-			result, err := dli.Query(ctx, queryText)
-			if err != nil {
-				fmt.Printf("Error processing query %s: %v\n", queryText, err)
-				return
-			}
-			results[idx] = result
-		}(i, q)
-	}
-
-	wg.Wait()
-
-	// Print results
-	fmt.Println("Results:")
-	for i, result := range results {
-		fmt.Printf("%d: %s\n", i, result)
-	}
 }

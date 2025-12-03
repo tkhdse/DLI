@@ -2,26 +2,25 @@ package main
 
 import (
 	"context"
+	"math/rand"
 )
 
 // Query represents a single query with its text, embedding, and result channel
 type Query struct {
 	Text      string
 	Embedding []float32
-	ResultCh  chan string // Channel to receive the result
+	ResultCh  chan string
 }
 
 // NewQuery creates a new query with the given text
-// In production, you'd integrate with an actual embedding model here
+// In production, integrate with an actual embedding model here
 func NewQuery(ctx context.Context, text string) *Query {
-	// TODO: Replace with actual embedding generation
-	// For now, creating a dummy 384-dimensional embedding
 	embedding := generateDummyEmbedding(384)
 
 	return &Query{
 		Text:      text,
 		Embedding: embedding,
-		ResultCh:  make(chan string, 1), // Buffered channel for result
+		ResultCh:  make(chan string, 1),
 	}
 }
 
@@ -30,8 +29,9 @@ func NewQuery(ctx context.Context, text string) *Query {
 func generateDummyEmbedding(dim int) []float32 {
 	emb := make([]float32, dim)
 	for i := range emb {
-		emb[i] = 0.1 // Placeholder values
+		emb[i] = rand.Float32()
 	}
+	normalizeVector(emb)
 	return emb
 }
 

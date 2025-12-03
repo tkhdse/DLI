@@ -1,46 +1,32 @@
-package durableindex
-
-import (
-	"fmt"
-)
-
-package index
+package main
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 )
 
-// DBCollection interface for database operations
-type DBCollection interface {
-	BatchQuery(ctx context.Context, texts []string, embeddings [][]float32) ([]interface{}, error)
-}
-
-// Bin handles batching of queries for efficient database access
+// Bin batches related queries together for efficient processing
 type Bin struct {
-	dbCollection   DBCollection
-	queue          []*Query
-	mu             sync.Mutex
-	flushChan      chan struct{}
-	shutdownChan   chan struct{}
-	wg             sync.WaitGroup
-	maxBatchSize   int
-	maxWaitTime    time.Duration
-	batchSizeMu    sync.RWMutex
-	shutdown       bool
+	dbCollection interface{}
+	queue        []*Query
+	mu           sync.Mutex
+	maxBatchSize int
+	maxWaitTime  time.Duration
+	flushCh      chan struct{}
+	shutdownCh   chan struct{}
+	wg           sync.WaitGroup
 }
 
-// NewBin creates a new Bin with the specified parameters
-func NewBin(dbCollection DBCollection, maxBatchSize int, maxWaitTime time.Duration) *Bin {
+// NewBin creates a new Bin instance
+func NewBin(dbCollection interface{}, maxBatchSize int, maxWaitTime time.Duration) *Bin {
 	b := &Bin{
 		dbCollection: dbCollection,
 		queue:        make([]*Query, 0, maxBatchSize),
-		flushChan:    make(chan struct{}, 1),
-		shutdownChan: make(chan struct{}),
 		maxBatchSize: maxBatchSize,
 		maxWaitTime:  maxWaitTime,
+		flushCh:      make(chan struct{}, 1),
+		shutdownCh:   make(chan struct{}),
 	}
 
 	b.wg.Add(1)
@@ -50,44 +36,51 @@ func NewBin(dbCollection DBCollection, maxBatchSize int, maxWaitTime time.Durati
 }
 
 // SetBatchSize updates the maximum batch size
-func (b *Bin) SetBatchSize(batchSize int) {
-	b.batchSizeMu.Lock()
-	b.maxBatchSize = batchSize
-	b.batchSizeMu.Unlock()
-
-	// TODO: Force flush if current queue exceeds new batch size
+func (b *Bin) SetBatchSize(size int) {
 	b.mu.Lock()
-	shouldFlush := len(b.queue) >= batchSize
-	b.mu.Unlock()
+	defer b.mu.Unlock()
 
-	if shouldFlush {
-		b.signalFlush()
+	oldSize := b.maxBatchSize
+	b.maxBatchSize = size
+
+	// If current queue exceeds new size, trigger flush
+	if len(b.queue) >= size && size < oldSize {
+		b.triggerFlush()
 	}
 }
 
 // SetWaitTime updates the maximum wait time
-func (b *Bin) SetWaitTime(waitTime time.Duration) {
-	b.batchSizeMu.Lock()
-	b.maxWaitTime = waitTime
-	b.batchSizeMu.Unlock()
-
-	// Signal to restart timer with new duration
-	b.signalFlush()
+func (b *Bin) SetWaitTime(duration time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.maxWaitTime = duration
 }
 
-// Shutdown gracefully shuts down the bin, processing remaining queries
-func (b *Bin) Shutdown(ctx context.Context) error {
+// AddQuery adds a query to the bin's queue
+func (b *Bin) AddQuery(q *Query) {
 	b.mu.Lock()
-	if b.shutdown {
-		b.mu.Unlock()
-		return nil
-	}
-	b.shutdown = true
+	b.queue = append(b.queue, q)
+	shouldFlush := len(b.queue) >= b.maxBatchSize
 	b.mu.Unlock()
 
-	close(b.shutdownChan)
+	if shouldFlush {
+		b.triggerFlush()
+	}
+}
 
-	// Wait for batch loop to finish with timeout
+// triggerFlush signals the batch loop to process immediately
+func (b *Bin) triggerFlush() {
+	select {
+	case b.flushCh <- struct{}{}:
+	default:
+		// Channel already has a signal
+	}
+}
+
+// Shutdown gracefully stops the bin
+func (b *Bin) Shutdown(ctx context.Context) error {
+	close(b.shutdownCh)
+
 	done := make(chan struct{})
 	go func() {
 		b.wg.Wait()
@@ -102,112 +95,72 @@ func (b *Bin) Shutdown(ctx context.Context) error {
 	}
 }
 
-// AddQuery adds a query to the bin for batch processing
-func (b *Bin) AddQuery(query *Query) error {
-	b.mu.Lock()
-	if b.shutdown {
-		b.mu.Unlock()
-		return fmt.Errorf("bin is shut down")
-	}
-
-	b.queue = append(b.queue, query)
-	queueSize := len(b.queue)
-	b.mu.Unlock()
-
-	b.batchSizeMu.RLock()
-	maxBatch := b.maxBatchSize
-	b.batchSizeMu.RUnlock()
-
-	// Trigger immediate flush if we've reached max batch size
-	if queueSize >= maxBatch {
-		b.signalFlush()
-	}
-
-	return nil
-}
-
-// signalFlush sends a non-blocking signal to process the batch
-func (b *Bin) signalFlush() {
-	select {
-	case b.flushChan <- struct{}{}:
-	default:
-		// Already has a pending flush signal
-	}
-}
-
-// batchLoop is the main goroutine that processes batches
+// batchLoop continuously processes batches
 func (b *Bin) batchLoop() {
 	defer b.wg.Done()
 
-	b.batchSizeMu.RLock()
 	timer := time.NewTimer(b.maxWaitTime)
-	b.batchSizeMu.RUnlock()
-
 	defer timer.Stop()
 
 	for {
 		select {
-		case <-b.shutdownChan:
-			// Process any remaining queries before shutting down
-			b.processBatch(context.Background())
+		case <-b.shutdownCh:
+			b.processBatch()
 			return
 
-		case <-b.flushChan:
+		case <-b.flushCh:
 			if !timer.Stop() {
 				select {
 				case <-timer.C:
 				default:
 				}
 			}
-			b.processBatch(context.Background())
-
-			b.batchSizeMu.RLock()
+			b.processBatch()
 			timer.Reset(b.maxWaitTime)
-			b.batchSizeMu.RUnlock()
 
 		case <-timer.C:
-			b.processBatch(context.Background())
-
-			b.batchSizeMu.RLock()
+			b.processBatch()
 			timer.Reset(b.maxWaitTime)
-			b.batchSizeMu.RUnlock()
 		}
 	}
 }
 
-// processBatch processes the current batch of queries
-func (b *Bin) processBatch(ctx context.Context) {
+// processBatch processes all queued queries
+func (b *Bin) processBatch() {
 	b.mu.Lock()
-	if len(b.queue) == 0 {
-		b.mu.Unlock()
-		return
-	}
-
-	// Take the current batch and reset the queue
 	batch := b.queue
 	b.queue = make([]*Query, 0, b.maxBatchSize)
 	b.mu.Unlock()
 
-	// Prepare batch data
+	if len(batch) == 0 {
+		return
+	}
+
 	texts := make([]string, len(batch))
 	embeddings := make([][]float32, len(batch))
 
-	for i, query := range batch {
-		texts[i] = query.GetText()
-		embeddings[i] = query.GetEmbedding()
+	for i, q := range batch {
+		texts[i] = q.Text
+		embeddings[i] = q.Embedding
 	}
 
-	// Execute batch query
-	results, err := b.dbCollection.BatchQuery(ctx, texts, embeddings)
+	results := b.batchVectorDBQuery(texts, embeddings)
 
-	// Send results back to each query
-	for i, query := range batch {
-		if err != nil {
-			query.SetResult(err)
-		} else if i < len(results) {
-			query.SetResult(results[i])
-		} else {
-			query.SetResult(fmt.Errorf("no result returned for query"))
-		}
+	for i, q := range batch {
+		q.SetResult(results[i])
 	}
+}
+
+// batchVectorDBQuery performs the actual database query
+func (b *Bin) batchVectorDBQuery(texts []string, embeddings [][]float32) []string {
+	// TODO: Implement actual database query logic
+	// For now, simulating with artificial delay
+	time.Sleep(100 * time.Millisecond)
+
+	results := make([]string, len(texts))
+	for i, text := range texts {
+		results[i] = "Result for '" + text + "'"
+	}
+
+	return results
 }
