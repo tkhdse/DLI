@@ -59,27 +59,32 @@ func RunBaseline() {
 	fmt.Println("✓ Pinecone client initialized")
 
 	// Define test queries - grouped by topic to see if similarity grouping works
-	queries := []string{
-		// Group 1: Machine Learning basics
-		"Which events led to the outbreak of World War I?",
-		"What were the major turning points that shifted momentum in World War II?",
-		"How did the Cold War shape international relations during the 20th century?",
+	// queries := []string{
+	// 	// Group 1: Machine Learning basics
+	// 	"Which events led to the outbreak of World War I?",
+	// 	"What were the major turning points that shifted momentum in World War II?",
+	// 	"How did the Cold War shape international relations during the 20th century?",
 
-		"How did the printing press influence the spread of knowledge?",
-		"What scientific advancements emerged from the Enlightenment era?",
-		"How did the invention of the telegraph transform long-distance communication?",
+	// 	"How did the printing press influence the spread of knowledge?",
+	// 	"What scientific advancements emerged from the Enlightenment era?",
+	// 	"How did the invention of the telegraph transform long-distance communication?",
 
-		"What were the major causes of the French Revolution?",
-		"How did the American Revolution impact global ideas about democracy?",
-		"What factors led to the collapse of the Russian Empire in 1917?",
+	// 	"What were the major causes of the French Revolution?",
+	// 	"How did the American Revolution impact global ideas about democracy?",
+	// 	"What factors led to the collapse of the Russian Empire in 1917?",
 
-		"What themes are most prominent in Beyoncé’s album Lemonade?",
-		"How did Taylor Swift’s Folklore reshape her artistic identity?",
-		"What cultural movements influenced Kendrick Lamar’s album To Pimp a Butterfly?",
+	// 	"What themes are most prominent in Beyoncé’s album Lemonade?",
+	// 	"How did Taylor Swift’s Folklore reshape her artistic identity?",
+	// 	"What cultural movements influenced Kendrick Lamar’s album To Pimp a Butterfly?",
 
-		"How did the Beatles influence popular music in the 1960s?",
-		"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
-		"How did Queen’s musical style evolve over the course of their career?",
+	// 	"How did the Beatles influence popular music in the 1960s?",
+	// 	"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
+	// 	"How did Queen’s musical style evolve over the course of their career?",
+	// }
+
+	queries, err := readLines("queries.txt")
+	if err != nil {
+		log.Fatalf("Failed to read queries from file: %v", err)
 	}
 
 	line := strings.Repeat("=", 60)

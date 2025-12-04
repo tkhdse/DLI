@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -11,6 +12,21 @@ import (
 	"syscall"
 	"time"
 )
+
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close() // Ensure the file is closed when the function exits
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err() // Return any error encountered by the scanner
+}
 
 func main() {
 
@@ -57,22 +73,10 @@ func main() {
 	fmt.Println("✓ DLI initialized")
 
 	// Define test queries - grouped by topic to see if DLI groups them correctly
-	queries := []string{
-		"What themes are most prominent in George Orwell’s novel 1984?",
-		"How does deforestation in the Amazon impact global carbon cycles?",
-		"How does cloud computing enable scalable data storage for large organizations?",
-		"What scientific goals did the Voyager 1 mission aim to accomplish during its journey?",
-		"What natural process drives the movement of tectonic plates on Earth?",
-		"How did the geography of the Nile River influence settlement patterns in ancient Egypt?",
-		"How do machine learning algorithms improve performance in speech recognition systems?",
-		"What architectural innovations are the ancient Egyptians best known for?",
-		"What narrative techniques does J.R.R. Tolkien use to develop the world of Middle-earth?",
-		"What are the primary causes of coral bleaching in tropical ocean ecosystems?",
-		"How did the Apollo 11 mission demonstrate advancements in lunar landing technology?",
-		"How did the Harlem Renaissance contribute to the rise of African American literature?",
-		"What factors contributed to the decline of the Mesopotamian city-state of Ur?",
-		"What role does the International Space Station play in long-term microgravity research?",
-		"What security advantages does end-to-end encryption provide for messaging apps?",
+
+	queries, err := readLines("queries.txt")
+	if err != nil {
+		log.Fatalf("Failed to read queries from file: %v", err)
 	}
 
 	line := strings.Repeat("=", 60)
@@ -157,5 +161,5 @@ func main() {
 	fmt.Printf("Total time: %v\n", totalDuration)
 	fmt.Printf("Average time per query: %v\n", totalDuration/time.Duration(len(queries)))
 	fmt.Println(line)
-	fmt.Printf("AVERAGE TIME SPENT QUERYING PINECONE: %vs\n", timeElapsed / time.Duration(len(queries)))
+	fmt.Printf("AVERAGE TIME SPENT QUERYING PINECONE: %vs\n", timeElapsed/time.Duration(len(queries)))
 }

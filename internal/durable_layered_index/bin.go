@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,10 +31,10 @@ func initialize() string {
 }
 
 var st = initialize()
-var timeElapsed time.Duration 
+var timeElapsed time.Duration
 
 var (
-	queryEmbedder embeddings.Embedder
+	queryEmbedder  embeddings.Embedder
 	promptTemplate = prompts.NewPromptTemplate(
 		`Use ONLY the following context to answer the question.
 
@@ -47,16 +46,13 @@ var (
 		If the answer is not in the context, say "I cannot find the answer in the context."`,
 		[]string{"question", "context"},
 	)
-	ctx = context.Background()
+	ctx      = context.Background()
 	llm, err = googleai.New(
 		ctx,
 		googleai.WithAPIKey(os.Getenv("GOOGLE_API_KEY")),
 	)
 	client, _ = NewClient(os.Getenv("PINECONE_API_KEY"), "durable-layered-index")
 )
-
-
-
 
 // NewBin creates a new Bin instance
 func NewBin(dbCollection interface{}, maxBatchSize int, maxWaitTime time.Duration) *Bin {
@@ -201,25 +197,29 @@ func (b *Bin) batchVectorDBQuery(texts []string, embeddings [][]float32) []strin
 
 	results := make([]string, len(texts))
 
-	
-	for i, text := range texts {
+	for i, _ := range texts {
 		qr := QueryRequest{
 			Vector:          embeddings[i],
 			TopK:            5,
 			IncludeValues:   true,
 			IncludeMetadata: true,
 		}
-		var contextBuilder strings.Builder
+		// var contextBuilder strings.Builder
 		start_time := time.Now()
-		res, _ := client.Query(cont, qr)
+		_, err := client.Query(cont, qr)
 		timeElapsed += (time.Since(start_time))
-		for _, m := range res.Matches {
-			if txt, ok := m.Metadata["text"].(string); ok {
-				contextBuilder.WriteString(txt)
-				contextBuilder.WriteString("\n\n")
-			}
+		if err != nil {
+			fmt.Printf("Pinecone query error: %v\n", err)
+			results[i] = "ERROR querying Pinecone"
+			continue
 		}
-		fmt.Printf("PROMPT: %s\n\nDOC: %s\n", text, &contextBuilder)
+		// for _, m := range res.Matches {
+		// 	if txt, ok := m.Metadata["text"].(string); ok {
+		// 		contextBuilder.WriteString(txt)
+		// 		contextBuilder.WriteString("\n\n")
+		// 	}
+		// }
+		// fmt.Printf("PROMPT: %s\n\nDOC: %s\n", text, &contextBuilder)
 		// contextText := contextBuilder.String()
 		// prompt, err := promptTemplate.Format(map[string]any{
 		// 	"question": text,
