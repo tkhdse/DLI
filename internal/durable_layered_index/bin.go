@@ -2,8 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
+    "github.com/tmc/langchaingo/llms/googleai"
+    "github.com/tmc/langchaingo/embeddings"
+    "github.com/tmc/langchaingo/prompts"
 )
 
 // Bin batches related queries together for efficient processing
@@ -17,6 +25,37 @@ type Bin struct {
 	shutdownCh   chan struct{}
 	wg           sync.WaitGroup
 }
+
+func initialize() string {
+	godotenv.Load()
+	return ""
+}
+
+var st = initialize()
+
+var (
+	queryEmbedder embeddings.Embedder
+	promptTemplate = prompts.NewPromptTemplate(
+		`Use ONLY the following context to answer the question.
+
+		Question: {{.question}}
+
+		Context:
+		{{.context}}
+
+		If the answer is not in the context, say "I cannot find the answer in the context."`,
+		[]string{"question", "context"},
+	)
+	ctx = context.Background()
+	llm, err = googleai.New(
+		ctx,
+		googleai.WithAPIKey(os.Getenv("GOOGLE_API_KEY")),
+	)
+	client, _ = NewClient(os.Getenv("PINECONE_API_KEY"), "durable-layered-index")
+)
+
+
+
 
 // NewBin creates a new Bin instance
 func NewBin(dbCollection interface{}, maxBatchSize int, maxWaitTime time.Duration) *Bin {
@@ -156,10 +195,39 @@ func (b *Bin) batchVectorDBQuery(texts []string, embeddings [][]float32) []strin
 	// TODO: Implement actual database query logic
 	// For now, simulating with artificial delay
 	time.Sleep(100 * time.Millisecond)
+	cont, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	results := make([]string, len(texts))
+
+	
 	for i, text := range texts {
-		results[i] = "Result for '" + text + "'"
+		qr := QueryRequest{
+			Vector:          embeddings[i],
+			TopK:            5,
+			IncludeValues:   true,
+			IncludeMetadata: true,
+		}
+		var contextBuilder strings.Builder
+		res, _ := client.Query(cont, qr)
+		for _, m := range res.Matches {
+			if txt, ok := m.Metadata["text"].(string); ok {
+				contextBuilder.WriteString(txt)
+				contextBuilder.WriteString("\n\n")
+			}
+		}
+		contextText := contextBuilder.String()
+		prompt, err := promptTemplate.Format(map[string]any{
+			"question": text,
+			"context":  contextText,
+		})
+		answer, err := llm.Call(ctx, prompt)
+		if err != nil {
+			fmt.Printf("LLM error: %v\n", err)
+			results[i] = "ERROR calling Gemini"
+			continue
+		}
+		results[i] = answer
 	}
 
 	return results

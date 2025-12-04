@@ -13,6 +13,12 @@ import (
 )
 
 func main() {
+
+	if len(os.Args) == 2 && os.Args[1] == "baseline" {
+		RunBaseline()
+		return
+	}
+
 	// Configuration
 	embeddingServerAddr := "localhost:50051"
 
@@ -42,7 +48,7 @@ func main() {
 	// Lower threshold = more bins (stricter grouping)
 	// Higher threshold = fewer bins (looser grouping)
 	fmt.Println("\nInitializing Durable Layered Index...")
-	dli := NewDurableLayeredIndex(nil, 100, 0.7) // 0.85 threshold for moderate grouping
+	dli := NewDurableLayeredIndex(nil, 100, 0.5) // 0.85 threshold for moderate grouping
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -52,33 +58,19 @@ func main() {
 
 	// Define test queries - grouped by topic to see if DLI groups them correctly
 	queries := []string{
-		// Group 1: Machine Learning basics
-		"What is machine learning?",
-		"Explain machine learning algorithms",
-		"How does machine learning work?",
+		"Which events led to the outbreak of World War I?",
+		"What were the major turning points that shifted momentum in World War II?",
+		"How did the Cold War shape international relations during the 20th century?",
 
-		// Group 2: Deep Learning
-		"What is deep learning?",
-		"Explain neural networks",
-		"How do neural networks learn?",
+		"How did the printing press influence the spread of knowledge?",
+		"What scientific advancements emerged from the Enlightenment era?",
+		"How did the invention of the telegraph transform long-distance communication?",
 
-		// Group 3: Natural Language Processing
-		"What is natural language processing?",
-		"How does NLP work?",
-		"Explain text processing",
+		"What were the major causes of the French Revolution?",
+		"How did the American Revolution impact global ideas about democracy?",
+		"What factors led to the collapse of the Russian Empire in 1917?",
 
-		// Group 4: Computer Vision
-		"What is computer vision?",
-		"How does image recognition work?",
-		"Explain object detection",
-
-		// Group 5: Unrelated - Cooking
-		"How do I bake a cake?",
-		"What is the best chocolate recipe?",
-
-		// Group 6: Unrelated - Sports
-		"Who won the world cup?",
-		"Explain basketball rules",
+		
 	}
 
 	line := strings.Repeat("=", 60)
