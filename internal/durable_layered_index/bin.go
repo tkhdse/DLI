@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-    "github.com/tmc/langchaingo/llms/googleai"
-    "github.com/tmc/langchaingo/embeddings"
-    "github.com/tmc/langchaingo/prompts"
+	"github.com/tmc/langchaingo/embeddings"
+	"github.com/tmc/langchaingo/llms/googleai"
+	"github.com/tmc/langchaingo/prompts"
 )
 
 // Bin batches related queries together for efficient processing
@@ -219,18 +219,19 @@ func (b *Bin) batchVectorDBQuery(texts []string, embeddings [][]float32) []strin
 				contextBuilder.WriteString("\n\n")
 			}
 		}
-		contextText := contextBuilder.String()
-		prompt, err := promptTemplate.Format(map[string]any{
-			"question": text,
-			"context":  contextText,
-		})
-		answer, err := llm.Call(ctx, prompt)
-		if err != nil {
-			fmt.Printf("LLM error: %v\n", err)
-			results[i] = "ERROR calling Gemini"
-			continue
-		}
-		results[i] = answer
+		fmt.Printf("PROMPT: %s\n\nDOC: %s\n", text, &contextBuilder)
+		// contextText := contextBuilder.String()
+		// prompt, err := promptTemplate.Format(map[string]any{
+		// 	"question": text,
+		// 	"context":  contextText,
+		// })
+		// answer, err := llm.Call(ctx, prompt)
+		// if err != nil {
+		// 	fmt.Printf("LLM error: %v\n", err)
+		// 	results[i] = "ERROR calling Gemini"
+		// 	continue
+		// }
+		results[i] = "Placeholder"
 	}
 
 	return results
