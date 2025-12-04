@@ -48,7 +48,7 @@ func main() {
 	// Lower threshold = more bins (stricter grouping)
 	// Higher threshold = fewer bins (looser grouping)
 	fmt.Println("\nInitializing Durable Layered Index...")
-	dli := NewDurableLayeredIndex(nil, 100, 0.5) // 0.85 threshold for moderate grouping
+	dli := NewDurableLayeredIndex(nil, 100, 0.25) // 0.85 threshold for moderate grouping
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -58,19 +58,21 @@ func main() {
 
 	// Define test queries - grouped by topic to see if DLI groups them correctly
 	queries := []string{
-		"Which events led to the outbreak of World War I?",
-		"What were the major turning points that shifted momentum in World War II?",
-		"How did the Cold War shape international relations during the 20th century?",
-
-		"How did the printing press influence the spread of knowledge?",
-		"What scientific advancements emerged from the Enlightenment era?",
-		"How did the invention of the telegraph transform long-distance communication?",
-
-		"What were the major causes of the French Revolution?",
-		"How did the American Revolution impact global ideas about democracy?",
-		"What factors led to the collapse of the Russian Empire in 1917?",
-
-		
+		"What themes are most prominent in George Orwell’s novel 1984?",
+		"How does deforestation in the Amazon impact global carbon cycles?",
+		"How does cloud computing enable scalable data storage for large organizations?",
+		"What scientific goals did the Voyager 1 mission aim to accomplish during its journey?",
+		"What natural process drives the movement of tectonic plates on Earth?",
+		"How did the geography of the Nile River influence settlement patterns in ancient Egypt?",
+		"How do machine learning algorithms improve performance in speech recognition systems?",
+		"What architectural innovations are the ancient Egyptians best known for?",
+		"What narrative techniques does J.R.R. Tolkien use to develop the world of Middle-earth?",
+		"What are the primary causes of coral bleaching in tropical ocean ecosystems?",
+		"How did the Apollo 11 mission demonstrate advancements in lunar landing technology?",
+		"How did the Harlem Renaissance contribute to the rise of African American literature?",
+		"What factors contributed to the decline of the Mesopotamian city-state of Ur?",
+		"What role does the International Space Station play in long-term microgravity research?",
+		"What security advantages does end-to-end encryption provide for messaging apps?",
 	}
 
 	line := strings.Repeat("=", 60)
@@ -155,4 +157,5 @@ func main() {
 	fmt.Printf("Total time: %v\n", totalDuration)
 	fmt.Printf("Average time per query: %v\n", totalDuration/time.Duration(len(queries)))
 	fmt.Println(line)
+	fmt.Printf("AVERAGE TIME SPENT QUERYING PINECONE: %vs\n", timeElapsed / time.Duration(len(queries)))
 }

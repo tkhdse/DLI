@@ -32,6 +32,7 @@ func initialize() string {
 }
 
 var st = initialize()
+var timeElapsed time.Duration 
 
 var (
 	queryEmbedder embeddings.Embedder
@@ -209,7 +210,9 @@ func (b *Bin) batchVectorDBQuery(texts []string, embeddings [][]float32) []strin
 			IncludeMetadata: true,
 		}
 		var contextBuilder strings.Builder
+		start_time := time.Now()
 		res, _ := client.Query(cont, qr)
+		timeElapsed += (time.Since(start_time))
 		for _, m := range res.Matches {
 			if txt, ok := m.Metadata["text"].(string); ok {
 				contextBuilder.WriteString(txt)

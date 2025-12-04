@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/tmc/langchaingo/llms/googleai"
+	// "github.com/tmc/langchaingo/llms/googleai"
 )
 
 func RunBaseline() {
@@ -80,69 +80,6 @@ func RunBaseline() {
 		"How did the Beatles influence popular music in the 1960s?",
 		"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
 		"How did Queen’s musical style evolve over the course of their career?",
-
-		
-		"Which events led to the outbreak of World War I?",
-		"What were the major turning points that shifted momentum in World War II?",
-		"How did the Cold War shape international relations during the 20th century?",
-
-		"How did the printing press influence the spread of knowledge?",
-		"What scientific advancements emerged from the Enlightenment era?",
-		"How did the invention of the telegraph transform long-distance communication?",
-
-		"What were the major causes of the French Revolution?",
-		"How did the American Revolution impact global ideas about democracy?",
-		"What factors led to the collapse of the Russian Empire in 1917?",
-
-		"What themes are most prominent in Beyoncé’s album Lemonade?",
-		"How did Taylor Swift’s Folklore reshape her artistic identity?",
-		"What cultural movements influenced Kendrick Lamar’s album To Pimp a Butterfly?",
-
-		"How did the Beatles influence popular music in the 1960s?",
-		"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
-		"How did Queen’s musical style evolve over the course of their career?",
-
-		
-		"Which events led to the outbreak of World War I?",
-		"What were the major turning points that shifted momentum in World War II?",
-		"How did the Cold War shape international relations during the 20th century?",
-
-		"How did the printing press influence the spread of knowledge?",
-		"What scientific advancements emerged from the Enlightenment era?",
-		"How did the invention of the telegraph transform long-distance communication?",
-
-		"What were the major causes of the French Revolution?",
-		"How did the American Revolution impact global ideas about democracy?",
-		"What factors led to the collapse of the Russian Empire in 1917?",
-
-		"What themes are most prominent in Beyoncé’s album Lemonade?",
-		"How did Taylor Swift’s Folklore reshape her artistic identity?",
-		"What cultural movements influenced Kendrick Lamar’s album To Pimp a Butterfly?",
-
-		"How did the Beatles influence popular music in the 1960s?",
-		"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
-		"How did Queen’s musical style evolve over the course of their career?",
-
-		
-		"Which events led to the outbreak of World War I?",
-		"What were the major turning points that shifted momentum in World War II?",
-		"How did the Cold War shape international relations during the 20th century?",
-
-		"How did the printing press influence the spread of knowledge?",
-		"What scientific advancements emerged from the Enlightenment era?",
-		"How did the invention of the telegraph transform long-distance communication?",
-
-		"What were the major causes of the French Revolution?",
-		"How did the American Revolution impact global ideas about democracy?",
-		"What factors led to the collapse of the Russian Empire in 1917?",
-
-		"What themes are most prominent in Beyoncé’s album Lemonade?",
-		"How did Taylor Swift’s Folklore reshape her artistic identity?",
-		"What cultural movements influenced Kendrick Lamar’s album To Pimp a Butterfly?",
-
-		"How did the Beatles influence popular music in the 1960s?",
-		"What made Pink Floyd’s The Dark Side of the Moon a landmark concept album?",
-		"How did Queen’s musical style evolve over the course of their career?",
 	}
 
 	line := strings.Repeat("=", 60)
@@ -150,18 +87,21 @@ func RunBaseline() {
 	fmt.Printf("Embedding and querying %d queries...\n", len(queries))
 	fmt.Printf(line + "\n\n")
 
-		// Initialize LLM and call with the prompt template
-	llm, lerr := googleai.New(context.Background(), googleai.WithAPIKey(os.Getenv("GOOGLE_API_KEY")))
-	if lerr != nil {
-		// answers[idx] = fmt.Sprintf("ERROR initializing LLM: %v", lerr)
-		return
-	}
+	// Initialize LLM and call with the prompt template
+	// llm, lerr := googleai.New(context.Background(), googleai.WithAPIKey(os.Getenv("GOOGLE_API_KEY")))
+	// if lerr != nil {
+	// 	// answers[idx] = fmt.Sprintf("ERROR initializing LLM: %v", lerr)
+	// 	return
+	// }
 
 	// Process queries concurrently: embed each query using NewQuery (per-query embedding), then query Pinecone
 	results := make([]*QueryResponse, len(queries))
 	answers := make([]string, len(queries))
 	errors := make([]error, len(queries))
+	// durations: pinecone query times per query
 	durations := make([]time.Duration, len(queries))
+	// llmDurations: LLM call times per query
+	llmDurations := make([]time.Duration, len(queries))
 	var wg sync.WaitGroup
 
 	totalStart := time.Now()
@@ -194,32 +134,37 @@ func RunBaseline() {
 			errors[idx] = qerr
 
 			// Build context from Pinecone matches (use metadata["text"] when available)
-			var contextBuilder strings.Builder
-			if resp != nil {
-				for _, m := range resp.Matches {
-					if txt, ok := m.Metadata["text"].(string); ok {
-						contextBuilder.WriteString(txt)
-						contextBuilder.WriteString("\n\n")
-					}
-				}
-			}
-			contextText := contextBuilder.String()
+			// var contextBuilder strings.Builder
+			// if resp != nil {
+			// 	for _, m := range resp.Matches {
+			// 		if txt, ok := m.Metadata["text"].(string); ok {
+			// 			contextBuilder.WriteString(txt)
+			// 			contextBuilder.WriteString("\n\n")
+			// 		}
+			// 	}
+			// }
+			// contextText := contextBuilder.String()
 
-			prompt, perr := promptTemplate.Format(map[string]any{
-				"question": text,
-				"context":  contextText,
-			})
-			if perr != nil {
-				answers[idx] = fmt.Sprintf("ERROR building prompt: %v", perr)
-				return
-			}
+			// prompt, perr := promptTemplate.Format(map[string]any{
+			// 	"question": text,
+			// 	"context":  contextText,
+			// })
+			// if perr != nil {
+			// 	answers[idx] = fmt.Sprintf("ERROR building prompt: %v", perr)
+			// 	return
+			// }
 
-			answer, aerr := llm.Call(qCtx, prompt)
-			if aerr != nil {
-				answers[idx] = fmt.Sprintf("ERROR calling LLM: %v", aerr)
-				return
-			}
-			answers[idx] = answer
+			// // time the LLM call
+			// llmStart := time.Now()
+			// answer, aerr := llm.Call(qCtx, prompt)
+			// llmDur := time.Since(llmStart)
+			// llmDurations[idx] = llmDur
+			// if aerr != nil {
+			// 	answers[idx] = fmt.Sprintf("ERROR calling LLM: %v", aerr)
+			// 	return
+			// }
+			// answers[idx] = answer
+			answers[idx] = "Placeholder"
 		}(i, qText)
 	}
 
@@ -260,6 +205,17 @@ func RunBaseline() {
 		}
 	}
 
+	// Sum pinecone and LLM times
+	var totalPine time.Duration
+	var totalLLM time.Duration
+	for i := range queries {
+		totalPine += durations[i]
+		totalLLM += llmDurations[i]
+	}
+
+	totalPine = totalPine / time.Duration(len(queries))
+	totalLLM = totalLLM / time.Duration(len(queries))
+
 	// Print summary and timings
 	fmt.Println("\n" + line)
 	fmt.Println("SUMMARY")
@@ -268,6 +224,8 @@ func RunBaseline() {
 	fmt.Printf("Successful queries: %d\n", successCount)
 	fmt.Printf("Failed queries: %d\n", len(queries)-successCount)
 	fmt.Printf("Total time (all queries): %v\n", totalDuration)
+	fmt.Printf("Total Pinecone query time (average): %v\n", totalPine)
+	fmt.Printf("Total LLM call time (average): %v\n", totalLLM)
 	avg := time.Duration(0)
 	if len(queries) > 0 {
 		avg = totalDuration / time.Duration(len(queries))
